@@ -1,0 +1,84 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  CircularProgress,
+  Alert
+} from '@mui/material';
+import { CheckCircle, Error } from '@mui/icons-material';
+import TimeDisplay from '../../components/Common/TimeDisplay';
+
+const DeviceValidation: React.FC = () => {
+  const [deviceCode, setDeviceCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{
+    valid: boolean;
+    message: string;
+  } | null>(null);
+
+  const handleValidate = async () => {
+    setLoading(true);
+    try {
+      // Add your validation logic here
+      const response = await fetch('/api/validate-device', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: deviceCode }),
+      });
+      const data = await response.json();
+      setResult(data);
+    } catch (error) {
+      setResult({
+        valid: false,
+        message: 'Validation failed. Please try again.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box>
+      <TimeDisplay />
+      <Paper sx={{ p: 3, mt: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Device Validation
+        </Typography>
+        
+        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            label="Enter Device Code"
+            value={deviceCode}
+            onChange={(e) => setDeviceCode(e.target.value)}
+            disabled={loading}
+          />
+          <Button
+            variant="contained"
+            onClick={handleValidate}
+            disabled={!deviceCode || loading}
+            sx={{ minWidth: 120 }}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Validate'}
+          </Button>
+        </Box>
+
+        {result && (
+          <Alert
+            icon={result.valid ? <CheckCircle /> : <Error />}
+            severity={result.valid ? 'success' : 'error'}
+          >
+            {result.message}
+          </Alert>
+        )}
+      </Paper>
+    </Box>
+  );
+};
+
+export default DeviceValidation;
