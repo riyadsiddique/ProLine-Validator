@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   Box,
   Paper,
-  Typography,
   Table,
   TableBody,
   TableCell,
@@ -10,31 +9,38 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  Chip,
   IconButton,
+  Chip,
+  Typography,
   Button,
-  Tooltip,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import {
-  Lock,
-  LockOpen,
-  Visibility,
-  Add as AddIcon,
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Edit as EditIcon,
+  Lock as LockIcon,
+  LockOpen as UnlockIcon,
 } from '@mui/icons-material';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchDevices } from '../../store/slices/deviceSlice';
-import TimeDisplay from '../../components/Common/TimeDisplay';
-import { Device } from '../../types';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchDevices, updateDeviceStatus } from '../../store/slices/deviceSlice';
+import { AppDispatch, RootState } from '../../store';
+import DeviceStatusBadge from '../../components/Devices/DeviceStatusBadge';
+import DeviceDetailsDialog from '../../components/Devices/DeviceDetailsDialog';
+import { Device } from '../../types/device';
 
 const DeviceList: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { devices, loading, total } = useAppSelector((state) => state.device);
+  const dispatch = useDispatch<AppDispatch>();
+  const { devices, isLoading } = useSelector((state: RootState) => state.device);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   useEffect(() => {
-    dispatch(fetchDevices({ page: page + 1, pageSize: rowsPerPage }));
-  }, [dispatch, page, rowsPerPage]);
+    dispatch(fetchDevices());
+  }, [dispatch]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -45,86 +51,129 @@ const DeviceList: React.FC = () => {
     setPage(0);
   };
 
-  const getStatusChipColor = (status: Device['status']) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'locked':
-        return 'error';
-      case 'unlocked':
-        return 'warning';
-      default:
-        return 'default';
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+    setPage(0);
+  };
+
+  const handleRefresh = () => {
+    dispatch(fetchDevices());
+  };
+
+  const handleDeviceAction = async (deviceId: string, action: 'lock' | 'unlock') => {
+    try {
+      await dispatch(updateDeviceStatus({ deviceId, status: action === 'lock' ? 'locked' : 'active' }));
+      dispatch(fetchDevices());
+    } catch (error) {
+      console.error('Error updating device status:', error);
     }
   };
 
+  const filteredDevices = devices.filter((device) =>
+    Object.values(device).some((value) =>
+      value?.toString().toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
+
+  const emptyRows =
+    page > 0 ? Math.max(0, (1 + page) * rowsPerPage - filteredDevices.length) : 0;
+
   return (
     <Box>
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5">Device Management</Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <TimeDisplay />
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => {/* Handle add device */}}
-            >
-              Add Device
-            </Button>
-          </Box>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between' }}>
+        <Typography variant="h5" component="h1">
+          Device Management
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setSelectedDevice({})}
+        >
+          Register New Device
+        </Button>
+      </Box>
+
+      <Paper sx={{ width: '100%', mb: 2 }}>
+        <Box sx={{ p: 2, display: 'flex', gap: 2 }}>
+          <TextField
+            size="small"
+            placeholder="Search devices..."
+            value={searchQuery}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ width: 300 }}
+          />
+          <IconButton onClick={handleRefresh} disabled={isLoading}>
+            <RefreshIcon />
+          </IconButton>
         </Box>
 
         <TableContainer>
-          <Table>
+          <Table size="medium">
             <TableHead>
               <TableRow>
                 <TableCell>Device ID</TableCell>
                 <TableCell>Model</TableCell>
                 <TableCell>Manufacturer</TableCell>
-                <TableCell>Android Version</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Last Updated</TableCell>
+                <TableCell>Last Validated</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {devices.map((device) => (
-                <TableRow key={device.id}>
-                  <TableCell>{device.deviceId}</TableCell>
-                  <TableCell>{device.model}</TableCell>
-                  <TableCell>{device.manufacturer}</TableCell>
-                  <TableCell>{device.androidVersion}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={device.status}
-                      color={getStatusChipColor(device.status)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>{new Date(device.updatedAt).toLocaleString()}</TableCell>
-                  <TableCell>
-                    <Tooltip title="View Details">
-                      <IconButton size="small" onClick={() => {/* Handle view */}}>
-                        <Visibility fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    {device.status === 'active' ? (
-                      <Tooltip title="Lock Device">
-                        <IconButton size="small" color="error" onClick={() => {/* Handle lock */}}>
-                          <Lock fontSize="small" />
+              {filteredDevices
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((device) => (
+                  <TableRow key={device.id} hover>
+                    <TableCell>{device.deviceId}</TableCell>
+                    <TableCell>{device.model}</TableCell>
+                    <TableCell>{device.manufacturer}</TableCell>
+                    <TableCell>
+                      <DeviceStatusBadge status={device.status} />
+                    </TableCell>
+                    <TableCell>
+                      {new Date(device.lastValidation).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => setSelectedDevice(device)}
+                        >
+                          <EditIcon />
                         </IconButton>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Unlock Device">
-                        <IconButton size="small" color="success" onClick={() => {/* Handle unlock */}}>
-                          <LockOpen fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </TableCell>
+                        {device.status === 'active' ? (
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeviceAction(device.id, 'lock')}
+                          >
+                            <LockIcon />
+                          </IconButton>
+                        ) : (
+                          <IconButton
+                            size="small"
+                            color="success"
+                            onClick={() => handleDeviceAction(device.id, 'unlock')}
+                          >
+                            <UnlockIcon />
+                          </IconButton>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {emptyRows > 0 && (
+                <TableRow style={{ height: 53 * emptyRows }}>
+                  <TableCell colSpan={6} />
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>
@@ -132,13 +181,23 @@ const DeviceList: React.FC = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"
-          count={total}
+          count={filteredDevices.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       </Paper>
+
+      <DeviceDetailsDialog
+        open={!!selectedDevice}
+        device={selectedDevice}
+        onClose={() => setSelectedDevice(null)}
+        onSave={() => {
+          setSelectedDevice(null);
+          handleRefresh();
+        }}
+      />
     </Box>
   );
 };
