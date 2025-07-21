@@ -21,3 +21,15 @@ export const productionConfig = {
     BACKGROUND_COLOR: '#f5f5f5',
   },
 };
+
+export const productionConfig = {
+  apiBaseUrl: process.env.REACT_APP_API_URL,
+  sentry: {
+    dsn: process.env.REACT_APP_SENTRY_DSN,
+    environment: 'production'
+  },
+  security: {
+    csrfHeaderName: 'X-CSRF-TOKEN',
+    allowedOrigins: ['https://your-domain.com']
+  }
+};
