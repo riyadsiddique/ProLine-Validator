@@ -1,81 +1,175 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
   Typography,
-  TextField,
+  Stepper,
+  Step,
+  StepLabel,
   Button,
   CircularProgress,
-  Alert
+  Alert,
+  Grid,
 } from '@mui/material';
-import { CheckCircle, Error } from '@mui/icons-material';
-import TimeDisplay from '../../components/Common/TimeDisplay';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch, RootState } from '../../store';
+import SecurityCheckStep from '../../components/Devices/ValidationSteps/SecurityCheckStep';
+import ConfigurationStep from '../../components/Devices/ValidationSteps/ConfigurationStep';
+import ComplianceStep from '../../components/Devices/ValidationSteps/ComplianceStep';
+import ValidationSummary from '../../components/Devices/ValidationSteps/ValidationSummary';
+import { startDeviceValidation, completeValidationStep } from '../../store/slices/deviceValidationSlice';
+
+const steps = ['Security Check', 'Configuration Verification', 'Compliance Check', 'Summary'];
 
 const DeviceValidation: React.FC = () => {
-  const [deviceCode, setDeviceCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{
-    valid: boolean;
-    message: string;
-  } | null>(null);
+  const dispatch = useDispatch<AppDispatch>();
+  const [activeStep, setActiveStep] = useState(0);
+  const [validationId, setValidationId] = useState<string>('');
+  const { currentDevice, validationResults, loading, error } = useSelector(
+    (state: RootState) => state.deviceValidation
+  );
 
-  const handleValidate = async () => {
-    setLoading(true);
+  useEffect(() => {
+    if (!validationId && currentDevice) {
+      dispatch(startDeviceValidation(currentDevice.id))
+        .then((action) => {
+          if (startDeviceValidation.fulfilled.match(action)) {
+            setValidationId(action.payload.validationId);
+          }
+        });
+    }
+  }, [dispatch, currentDevice, validationId]);
+
+  const handleNext = async () => {
     try {
-      // Add your validation logic here
-      const response = await fetch('/api/validate-device', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code: deviceCode }),
-      });
-      const data = await response.json();
-      setResult(data);
+      await dispatch(completeValidationStep({
+        validationId,
+        step: activeStep,
+        stepData: validationResults[activeStep]
+      }));
+      setActiveStep((prevStep) => prevStep + 1);
     } catch (error) {
-      setResult({
-        valid: false,
-        message: 'Validation failed. Please try again.',
-      });
-    } finally {
-      setLoading(false);
+      console.error('Error completing validation step:', error);
     }
   };
 
+  const handleBack = () => {
+    setActiveStep((prevStep) => prevStep - 1);
+  };
+
+  const renderStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <SecurityCheckStep
+            deviceId={currentDevice?.id}
+            validationId={validationId}
+            onComplete={(results) => {
+              dispatch(completeValidationStep({
+                validationId,
+                step,
+                stepData: results
+              }));
+            }}
+          />
+        );
+      case 1:
+        return (
+          <ConfigurationStep
+            deviceId={currentDevice?.id}
+            validationId={validationId}
+            onComplete={(results) => {
+              dispatch(completeValidationStep({
+                validationId,
+                step,
+                stepData: results
+              }));
+            }}
+          />
+        );
+      case 2:
+        return (
+          <ComplianceStep
+            deviceId={currentDevice?.id}
+            validationId={validationId}
+            onComplete={(results) => {
+              dispatch(completeValidationStep({
+                validationId,
+                step,
+                stepData: results
+              }));
+            }}
+          />
+        );
+      case 3:
+        return (
+          <ValidationSummary
+            deviceId={currentDevice?.id}
+            validationId={validationId}
+            results={validationResults}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (loading && !validationId) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box m={2}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box>
-      <TimeDisplay />
-      <Paper sx={{ p: 3, mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h5" gutterBottom>
           Device Validation
         </Typography>
-        
-        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-          <TextField
-            fullWidth
-            label="Enter Device Code"
-            value={deviceCode}
-            onChange={(e) => setDeviceCode(e.target.value)}
-            disabled={loading}
-          />
-          <Button
-            variant="contained"
-            onClick={handleValidate}
-            disabled={!deviceCode || loading}
-            sx={{ minWidth: 120 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Validate'}
-          </Button>
+        {currentDevice && (
+          <Typography color="textSecondary" gutterBottom>
+            Device: {currentDevice.manufacturer} {currentDevice.model} ({currentDevice.deviceId})
+          </Typography>
+        )}
+        <Stepper activeStep={activeStep} sx={{ mt: 3, mb: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        <Box sx={{ mt: 4, mb: 2 }}>
+          {renderStepContent(activeStep)}
         </Box>
 
-        {result && (
-          <Alert
-            icon={result.valid ? <CheckCircle /> : <Error />}
-            severity={result.valid ? 'success' : 'error'}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+          <Button
+            disabled={activeStep === 0}
+            onClick={handleBack}
+            sx={{ mr: 1 }}
           >
-            {result.message}
-          </Alert>
-        )}
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleNext}
+            disabled={loading}
+          >
+            {activeStep === steps.length - 1 ? 'Finish' : 'Next'}
+            {loading && <CircularProgress size={24} sx={{ ml: 1 }} />}
+          </Button>
+        </Box>
       </Paper>
     </Box>
   );
