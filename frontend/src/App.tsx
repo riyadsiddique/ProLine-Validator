@@ -1,20 +1,28 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { Provider } from 'react-redux';
-import MainLayout from './layouts/MainLayout';
 import theme from './theme';
 import store from './store';
 
+// Layouts
+import ProtectedLayout from './layouts/ProtectedLayout';
+
 // Pages
-import Dashboard from './pages/Dashboard';
-import DeviceValidation from './pages/Devices/DeviceValidation';
-import DeviceList from './pages/Devices/DeviceList';
-import SystemSettings from './pages/Settings/SystemSettings';
-import UserManagement from './pages/Admin/UserManagement';
 import Login from './pages/Auth/Login';
-import NotFound from './pages/NotFound';
-import ProtectedRoute from './components/Auth/ProtectedRoute';
+import Dashboard from './pages/Dashboard';
+import DeviceList from './pages/Devices/DeviceList';
+import DeviceValidation from './pages/Devices/DeviceValidation';
+import UserManagement from './pages/Admin/UserManagement';
+import ActivityLogs from './pages/Admin/ActivityLogs';
+import SystemSettings from './pages/Settings/SystemSettings';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+
+// Guards
+import PermissionGuard from './components/Auth/PermissionGuard';
+
+// Constants
+import { ROUTES_PERMISSIONS } from './utils/permissions';
 
 const App: React.FC = () => {
   return (
@@ -24,16 +32,65 @@ const App: React.FC = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route element={<ProtectedRoute />}>
-              <Route element={<MainLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/devices" element={<DeviceList />} />
-                <Route path="/validate" element={<DeviceValidation />} />
-                <Route path="/settings" element={<SystemSettings />} />
-                <Route path="/users" element={<UserManagement />} />
-              </Route>
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            
+            <Route element={<ProtectedLayout />}>
+              <Route
+                path="/"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.dashboard.permissions}>
+                    <Dashboard />
+                  </PermissionGuard>
+                }
+              />
+              
+              <Route
+                path="/devices"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.deviceList.permissions}>
+                    <DeviceList />
+                  </PermissionGuard>
+                }
+              />
+              
+              <Route
+                path="/validate"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.deviceValidation.permissions}>
+                    <DeviceValidation />
+                  </PermissionGuard>
+                }
+              />
+              
+              <Route
+                path="/admin"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.adminManagement.permissions}>
+                    <UserManagement />
+                  </PermissionGuard>
+                }
+              />
+              
+              <Route
+                path="/admin/logs"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.activityLogs.permissions}>
+                    <ActivityLogs />
+                  </PermissionGuard>
+                }
+              />
+              
+              <Route
+                path="/settings"
+                element={
+                  <PermissionGuard requiredPermissions={ROUTES_PERMISSIONS.settings.permissions}>
+                    <SystemSettings />
+                  </PermissionGuard>
+                }
+              />
             </Route>
-            <Route path="*" element={<NotFound />} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>
