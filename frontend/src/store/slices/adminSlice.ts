@@ -6,6 +6,7 @@ interface AdminState {
   admins: Admin[];
   loading: boolean;
   error: string | null;
+  activityLogs: ActivityLog[];
 }
 
 const initialState: AdminState = {
@@ -45,6 +46,21 @@ export const updateAdminStatus = createAsyncThunk(
     return response.data;
   }
 );
+export const fetchActivityLogs = createAsyncThunk(
+  'admin/fetchActivityLogs',
+  async (filters: any) => {
+    const response = await apiService.get('/admin/activity-logs', { params: filters });
+    return response.data;
+  }
+);
+
+export const updateAdminPermissions = createAsyncThunk(
+  'admin/updatePermissions',
+  async ({ adminId, permissions }: { adminId: string; permissions: string[] }) => {
+    const response = await apiService.put(`/admins/${adminId}/permissions`, { permissions });
+    return response.data;
+  }
+);
 
 const adminSlice = createSlice({
   name: 'admin',
@@ -79,6 +95,15 @@ const adminSlice = createSlice({
         const index = state.admins.findIndex(
           (admin) => admin.id === action.payload.id
         );
+        if (index !== -1) {
+          state.admins[index] = action.payload;
+        }
+      })
+      .addCase(fetchActivityLogs.fulfilled, (state, action) => {
+        state.activityLogs = action.payload;
+      })
+      .addCase(updateAdminPermissions.fulfilled, (state, action) => {
+        const index = state.admins.findIndex((admin) => admin.id === action.payload.id);
         if (index !== -1) {
           state.admins[index] = action.payload;
         }
