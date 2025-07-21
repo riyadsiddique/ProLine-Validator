@@ -1,11 +1,18 @@
-export interface Admin {
+// Add to existing admin.ts
+export interface ActivityLog {
+  id: string;
+  timestamp: string;
+  user: string;
+  activity: string;
+  type: string;
+  ipAddress: string;
+  status: 'success' | 'error';
+  details: any;
+}
+
+export interface AdminPermission {
   id: string;
   name: string;
-  email: string;
-  bankName: string;
-  role: 'admin' | 'super_admin';
-  status: 'active' | 'inactive';
-  createdAt: string;
-  updatedAt: string;
-  password?: string;
+  description: string;
+  category: string;
 }
